@@ -1,0 +1,11 @@
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Memberikan akses penuh kepada Guru/BK yang sudah terautentikasi.
+    // Hal ini memastikan seluruh data (siswa, guru, pelanggaran, kelas) dapat diakses oleh staf resmi JAYA.
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

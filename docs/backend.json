@@ -1,0 +1,81 @@
+{
+  "entities": {
+    "Student": {
+      "title": "Student",
+      "description": "Data profil siswa lengkap untuk administrasi bimbingan konseling.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "class": { "type": "string" },
+        "studentIdNumber": { "type": "string", "description": "NISN" },
+        "gender": { "type": "string", "enum": ["Laki-laki", "Perempuan"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["name", "class", "studentIdNumber", "gender"]
+    },
+    "Teacher": {
+      "title": "Teacher",
+      "description": "Data guru, staf, dan konselor sekolah yang memiliki akses sistem.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "employeeId": { "type": "string", "description": "NIP" },
+        "subject": { "type": "string" },
+        "phone": { "type": "string" },
+        "isCounselor": { "type": "boolean" },
+        "role": { "type": "string", "enum": ["GURU", "BK", "ADMIN"] },
+        "email": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["name", "employeeId", "subject", "phone", "role"]
+    },
+    "ClassRoom": {
+      "title": "ClassRoom",
+      "description": "Informasi kelas dan penugasan wali kelas.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "homeroomTeacherId": { "type": "string" },
+        "studentCount": { "type": "number" }
+      },
+      "required": ["name", "homeroomTeacherId"]
+    },
+    "Violation": {
+      "title": "Violation",
+      "description": "Catatan insiden pelanggaran yang dilakukan oleh siswa.",
+      "type": "object",
+      "properties": {
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "studentClass": { "type": "string" },
+        "type": { "type": "string" },
+        "date": { "type": "string" },
+        "description": { "type": "string" },
+        "counselorNotes": { "type": "string" },
+        "categories": { "type": "array", "items": { "type": "string" } },
+        "actionTaken": { "type": "string" },
+        "points": { "type": "number", "description": "Bobot poin pelanggaran" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["studentId", "type", "date", "description", "points"]
+    },
+    "ViolationType": {
+      "title": "ViolationType",
+      "description": "Master data jenis pelanggaran dan bobot poinnya.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "points": { "type": "number" },
+        "category": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["name", "points"]
+    }
+  },
+  "auth": {
+    "providers": ["password"]
+  },
+  "firestore": {
+    "rules": "allow read, write: if true;"
+  }
+}
