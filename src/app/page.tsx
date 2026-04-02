@@ -221,7 +221,7 @@ export default function WelcomePage() {
                   SMKS PK Jamiyatul Aulad
                 </p>
                 <p className="text-white/80 text-xs">
-                  Pusat Keunggulan Kedisiplinan
+                  Pusat Keunggulan Berbasis Pesantren
                 </p>
               </div>
             </div>
