@@ -228,7 +228,6 @@ export default function SuratPeringatanPage({ params }: { params: Promise<{ id: 
               <span className="flex items-center gap-1.5"><Mail className="w-3 h-3" /> jamiyyatulauladsmk@yahoo.com</span>
               <span className="flex items-center gap-1.5"><Globe className="w-3 h-3" /> www.smkjaya.sch.id</span>
             </div>
-            <div className="font-bold uppercase tracking-widest opacity-30">Dokumen Resmi Sekolah</div>
           </div>
         </div>
 
