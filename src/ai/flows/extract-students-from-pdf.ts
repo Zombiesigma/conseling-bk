@@ -1,6 +1,6 @@
 'use server';
 /**
- * @fileOverview An AI agent that extracts a list of students (name and NISN) from a PDF.
+ * @fileOverview An AI agent that extracts a list of students (name, NISN, gender, and class) from a PDF.
  *
  * - extractStudentsFromPdf - A function that handles the extraction process.
  * - ExtractStudentsInput - The input type.
@@ -14,6 +14,7 @@ const ExtractedStudentSchema = z.object({
   name: z.string().describe('Full name of the student.'),
   studentIdNumber: z.string().describe('NISN or student identification number.'),
   gender: z.enum(['Laki-laki', 'Perempuan']).describe('Gender of the student based on name or explicit mention.'),
+  class: z.string().describe('The class or grade of the student (e.g., "X RPL 1", "XI TKRO", etc.).'),
 });
 
 const ExtractStudentsInputSchema = z.object({
@@ -44,8 +45,12 @@ For each student, identify:
 1. Full Name
 2. NISN (National Student Identification Number)
 3. Gender (infer from name if not explicitly stated: 'Laki-laki' for boys, 'Perempuan' for girls)
+4. Class/Kelas (The specific class they belong to, e.g., "X RPL 1", "XII DKV", etc.)
 
-If the document contains a table, ensure you capture every row.
+If the document is a list for a specific class mentioned in the header, apply that class to all students in that table.
+If the document contains a table with a "Kelas" column, use the specific value for each row.
+
+Ensure the class names are standardized (e.g., "X RPL 1" instead of just "RPL1").
 
 Document: {{media url=pdfDataUri}}`,
 });

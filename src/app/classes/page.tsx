@@ -1,7 +1,6 @@
-
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Card, CardContent } from "@/components/ui/card";
 import { 
@@ -14,7 +13,7 @@ import {
 } from "@/components/ui/table";
 import { School, Users, UserCog, Loader2, PlusCircle, Pencil, Trash2, ExternalLink } from "lucide-react";
 import { useCollection, useFirestore, useUser } from "@/firebase";
-import { collection, addDoc, doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { collection, addDoc, doc, updateDoc, deleteDoc, query, where, getDocs } from "firebase/firestore";
 import { useMemoFirebase } from "@/firebase/hooks/use-memo-firebase";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -38,6 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { AlertCircle } from "lucide-react";
 
 const TINGKAT_OPTIONS = ["X", "XI", "XII"];
 const JURUSAN_OPTIONS = ["RPL 1", "RPL 2", "LP", "DPB", "DKV", "TKRO"];
@@ -51,6 +51,7 @@ export default function ClassesListPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedClass, setSelectedClass] = useState<any>(null);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const [formState, setFormState] = useState({
     tingkat: "",
@@ -83,6 +84,43 @@ export default function ClassesListPage() {
   const { data: teachers = [] } = useCollection(teachersQuery);
   const { data: students = [], loading: sLoading } = useCollection(studentsQuery);
 
+  // Fungsi untuk mengecek apakah kelas sudah ada (untuk penambahan)
+  const isClassExists = async (tingkat: string, jurusan: string, excludeId?: string) => {
+    if (!db) return false;
+    const className = `${tingkat} ${jurusan}`;
+    const q = query(collection(db, "classes"), where("name", "==", className));
+    const snapshot = await getDocs(q);
+    if (excludeId) {
+      return snapshot.docs.some(doc => doc.id !== excludeId);
+    }
+    return !snapshot.empty;
+  };
+
+  // Urutkan kelas berdasarkan tingkat (X, XI, XII) dan jurusan sesuai urutan
+  const sortedClasses = useMemo(() => {
+    const orderTingkat: Record<string, number> = { X: 1, XI: 2, XII: 3 };
+    const orderJurusan: Record<string, number> = {
+      "RPL 1": 1,
+      "RPL 2": 2,
+      "LP": 3,
+      "DPB": 4,
+      "DKV": 5,
+      "TKRO": 6,
+    };
+
+    return [...classes].sort((a, b) => {
+      const [aTingkat, ...aJurusanParts] = a.name.split(' ');
+      const aJurusan = aJurusanParts.join(' ');
+      const [bTingkat, ...bJurusanParts] = b.name.split(' ');
+      const bJurusan = bJurusanParts.join(' ');
+
+      const tingkatDiff = (orderTingkat[aTingkat] || 99) - (orderTingkat[bTingkat] || 99);
+      if (tingkatDiff !== 0) return tingkatDiff;
+
+      return (orderJurusan[aJurusan] || 99) - (orderJurusan[bJurusan] || 99);
+    });
+  }, [classes]);
+
   const getTeacherName = (id: string) => {
     if (!id || id === "none") return "Belum ditentukan";
     return teachers.find(t => t.id === id)?.name || "Belum ditentukan";
@@ -94,9 +132,17 @@ export default function ClassesListPage() {
 
   const handleAddClass = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMessage("");
     if (!db) return;
     if (!formState.tingkat || !formState.jurusan) {
       toast({ variant: "destructive", title: "Gagal", description: "Lengkapi tingkat dan jurusan kelas." });
+      return;
+    }
+
+    // Cek duplikasi
+    const exists = await isClassExists(formState.tingkat, formState.jurusan);
+    if (exists) {
+      setErrorMessage(`Kelas ${formState.tingkat} ${formState.jurusan} sudah ada. Tidak boleh menambahkan duplikat.`);
       return;
     }
 
@@ -113,6 +159,7 @@ export default function ClassesListPage() {
         toast({ title: "Berhasil", description: `Kelas ${className} telah ditambahkan.` });
         setOpen(false);
         setFormState({ tingkat: "", jurusan: "", homeroomTeacherId: "none" });
+        setErrorMessage("");
       })
       .catch((err) => {
         const permissionError = new FirestorePermissionError({
@@ -121,6 +168,7 @@ export default function ClassesListPage() {
           requestResourceData: newClass,
         });
         errorEmitter.emit('permission-error', permissionError);
+        toast({ variant: "destructive", title: "Gagal", description: "Terjadi kesalahan saat menambahkan kelas." });
       })
       .finally(() => setIsSubmitting(false));
   };
@@ -136,15 +184,24 @@ export default function ClassesListPage() {
       jurusan: jurusan,
       homeroomTeacherId: cls.homeroomTeacherId || "none"
     });
+    setErrorMessage("");
     setEditOpen(true);
   };
 
   const handleUpdateClass = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMessage("");
     if (!db || !selectedClass) return;
 
     if (!editFormState.tingkat || !editFormState.jurusan) {
       toast({ variant: "destructive", title: "Gagal", description: "Lengkapi tingkat dan jurusan kelas." });
+      return;
+    }
+
+    // Cek duplikasi, kecuali untuk kelas yang sedang diedit
+    const exists = await isClassExists(editFormState.tingkat, editFormState.jurusan, selectedClass.id);
+    if (exists) {
+      setErrorMessage(`Kelas ${editFormState.tingkat} ${editFormState.jurusan} sudah ada. Tidak boleh mengubah ke nama yang sudah ada.`);
       return;
     }
 
@@ -168,13 +225,14 @@ export default function ClassesListPage() {
           requestResourceData: updateData,
         });
         errorEmitter.emit('permission-error', permissionError);
+        toast({ variant: "destructive", title: "Gagal", description: "Terjadi kesalahan saat memperbarui kelas." });
       })
       .finally(() => setIsSubmitting(false));
   };
 
   const handleDeleteClass = (id: string, name: string) => {
     if (!db) return;
-    if (!window.confirm(`Apakah Anda yakin ingin menghapus kelas ${name}?`)) return;
+    if (!window.confirm(`Apakah Anda yakin ingin menghapus kelas ${name}? Siswa yang terdaftar di kelas ini akan tetap ada tetapi tidak memiliki kelas.`)) return;
 
     setIsSubmitting(true);
     const docRef = doc(db, "classes", id);
@@ -188,6 +246,7 @@ export default function ClassesListPage() {
           operation: 'delete',
         });
         errorEmitter.emit('permission-error', permissionError);
+        toast({ variant: "destructive", title: "Gagal", description: "Terjadi kesalahan saat menghapus kelas." });
       })
       .finally(() => setIsSubmitting(false));
   };
@@ -238,8 +297,17 @@ export default function ClassesListPage() {
                       </SelectContent>
                     </Select>
                   </div>
+                  {errorMessage && (
+                    <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-2 rounded-md">
+                      <AlertCircle className="h-4 w-4" />
+                      <span>{errorMessage}</span>
+                    </div>
+                  )}
                 </div>
-                <DialogFooter><Button type="submit" disabled={isSubmitting}>{isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Simpan Kelas</Button></DialogFooter>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => { setOpen(false); setErrorMessage(""); }}>Batal</Button>
+                  <Button type="submit" disabled={isSubmitting}>{isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Simpan Kelas</Button>
+                </DialogFooter>
               </form>
             </DialogContent>
           </Dialog>
@@ -273,8 +341,8 @@ export default function ClassesListPage() {
             <TableBody>
               {cLoading || sLoading ? (
                 <TableRow><TableCell colSpan={4} className="h-24 text-center"><div className="flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Memuat data kelas...</div></TableCell></TableRow>
-              ) : classes.length > 0 ? (
-                classes.map((cls) => (
+              ) : sortedClasses.length > 0 ? (
+                sortedClasses.map((cls) => (
                   <TableRow key={cls.id}>
                     <TableCell className="font-bold text-primary">
                       <Link 
@@ -345,9 +413,15 @@ export default function ClassesListPage() {
                   </SelectContent>
                 </Select>
               </div>
+              {errorMessage && (
+                <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-2 rounded-md">
+                  <AlertCircle className="h-4 w-4" />
+                  <span>{errorMessage}</span>
+                </div>
+              )}
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>Batal</Button>
+              <Button type="button" variant="outline" onClick={() => { setEditOpen(false); setErrorMessage(""); }}>Batal</Button>
               <Button type="submit" disabled={isSubmitting}>{isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Simpan Perubahan</Button>
             </DialogFooter>
           </form>

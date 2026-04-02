@@ -5,8 +5,56 @@ import { Toaster } from "@/components/ui/toaster";
 import { FirebaseClientProvider } from "@/firebase/client-provider";
 
 export const metadata: Metadata = {
-  title: 'JAYA - SMKS PK JAMIYATUL AULAD',
-  description: 'Sistem Pencatatan Pelanggaran Siswa - SMKS PK JAMIYATUL AULAD',
+  title: {
+    default: 'JAYA - SMKS PK JAMIYATUL AULAD',
+    template: '%s | JAYA'
+  },
+  description: 'Sistem Informasi Kedisiplinan Terintegrasi (JAYA) SMKS PK JAMIYATUL AULAD Palabuhanratu. Platform manajemen BK modern untuk pencatatan poin, pemantauan karakter, dan transparansi kedisiplinan siswa.',
+  keywords: [
+    'SMKS PK Jamiyatul Aulad', 
+    'JAYA', 
+    'Sistem BK', 
+    'Poin Pelanggaran Siswa', 
+    'Palabuhanratu', 
+    'Sukabumi', 
+    'Kedisiplinan Sekolah',
+    'Manajemen Karakter Siswa'
+  ],
+  authors: [{ name: 'SMKS PK Jamiyatul Aulad' }],
+  creator: 'Tim IT SMKS PK Jamiyatul Aulad',
+  publisher: 'SMKS PK Jamiyatul Aulad',
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
+  openGraph: {
+    title: 'JAYA - Sistem Kedisiplinan Terintegrasi',
+    description: 'Transformasi kedisiplinan masa depan di SMKS PK JAMIYATUL AULAD.',
+    url: 'https://smkjaya.sch.id',
+    siteName: 'JAYA SMKS PK Jamiyatul Aulad',
+    images: [
+      {
+        url: 'https://jurnalsukabumi.com/wp-content/uploads/2025/10/IMG-20251009-WA0012.jpg',
+        width: 1200,
+        height: 630,
+        alt: 'JAYA SMKS PK Jamiyatul Aulad',
+      },
+    ],
+    locale: 'id_ID',
+    type: 'website',
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
 };
 
 export default function RootLayout({

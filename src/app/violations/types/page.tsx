@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -16,10 +15,11 @@ import {
 import { 
   PlusCircle, 
   Loader2, 
-  Trash2
+  Trash2,
+  Pencil
 } from "lucide-react";
 import { useCollection, useFirestore, useUser } from "@/firebase";
-import { collection, addDoc, deleteDoc, doc } from "firebase/firestore";
+import { collection, addDoc, deleteDoc, doc, updateDoc } from "firebase/firestore";
 import { useMemoFirebase } from "@/firebase/hooks/use-memo-firebase";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -42,9 +42,16 @@ export default function ViolationTypesPage() {
   const { toast } = useToast();
   
   const [open, setOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedType, setSelectedType] = useState<any>(null);
   
   const [formState, setFormState] = useState({
+    name: "",
+    points: 0,
+  });
+
+  const [editFormState, setEditFormState] = useState({
     name: "",
     points: 0,
   });
@@ -81,6 +88,38 @@ export default function ViolationTypesPage() {
         setFormState({ name: "", points: 0 });
       })
       .catch(() => toast({ variant: "destructive", title: "Gagal", description: "Gagal menyimpan data." }))
+      .finally(() => setIsSubmitting(false));
+  };
+
+  const handleEditClick = (type: any) => {
+    setSelectedType(type);
+    setEditFormState({
+      name: type.name,
+      points: type.points,
+    });
+    setEditOpen(true);
+  };
+
+  const handleUpdateType = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!db || !selectedType) return;
+    if (!editFormState.name || editFormState.points < 0) {
+      toast({ variant: "destructive", title: "Gagal", description: "Lengkapi nama dan poin pelanggaran." });
+      return;
+    }
+
+    setIsSubmitting(true);
+    const docRef = doc(db, "violationTypes", selectedType.id);
+    updateDoc(docRef, {
+      name: editFormState.name,
+      points: editFormState.points,
+      updatedAt: new Date().toISOString()
+    })
+      .then(() => {
+        toast({ title: "Berhasil", description: "Jenis pelanggaran diperbarui." });
+        setEditOpen(false);
+      })
+      .catch(() => toast({ variant: "destructive", title: "Gagal", description: "Gagal memperbarui data." }))
       .finally(() => setIsSubmitting(false));
   };
 
@@ -167,7 +206,7 @@ export default function ViolationTypesPage() {
               <TableRow>
                 <TableHead>Nama Pelanggaran</TableHead>
                 <TableHead className="w-[150px] text-center">Bobot Poin</TableHead>
-                <TableHead className="w-[100px] text-right">Aksi</TableHead>
+                <TableHead className="w-[120px] text-right">Aksi</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -188,14 +227,23 @@ export default function ViolationTypesPage() {
                       </span>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="text-destructive hover:bg-destructive/10"
-                        onClick={() => handleDelete(type.id)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => handleEditClick(type)}
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="text-destructive hover:bg-destructive/10"
+                          onClick={() => handleDelete(type.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -210,6 +258,45 @@ export default function ViolationTypesPage() {
           </Table>
         </div>
       </div>
+
+      {/* Dialog Edit */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <form onSubmit={handleUpdateType}>
+            <DialogHeader>
+              <DialogTitle>Edit Jenis Pelanggaran</DialogTitle>
+              <DialogDescription>Ubah nama atau poin pelanggaran.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label>Nama Pelanggaran</Label>
+                <Input 
+                  placeholder="Contoh: Merokok di Lingkungan Sekolah" 
+                  value={editFormState.name}
+                  onChange={(e) => setEditFormState({...editFormState, name: e.target.value})}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Poin Skor</Label>
+                <Input 
+                  type="number" 
+                  value={editFormState.points}
+                  onChange={(e) => setEditFormState({...editFormState, points: parseInt(e.target.value) || 0})}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>
+                Batal
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Simpan Perubahan
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 }
