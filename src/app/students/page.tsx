@@ -354,14 +354,14 @@ function StudentsListContent() {
           <Dialog open={importOpen} onOpenChange={setImportOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm" className="bg-white border-primary text-primary hover:bg-primary/5">
-                <FileUp className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Import Massal AI</span>
+                <FileUp className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Import File</span>
                 <span className="sm:hidden">Import AI</span>
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-3xl w-[95vw] max-h-[90vh] overflow-y-auto rounded-xl">
               <DialogHeader>
                 <DialogTitle>Import Siswa Massal Otomatis</DialogTitle>
-                <DialogDescription>AI akan mendeteksi Nama, NISN, Gender, dan Kelas secara otomatis dari dokumen Anda.</DialogDescription>
+                <DialogDescription>Sistem akan mendeteksi Nama, NISN, Gender, dan Kelas secara otomatis dari dokumen.</DialogDescription>
               </DialogHeader>
               
               <div className="space-y-6 py-4">
@@ -370,7 +370,7 @@ function StudentsListContent() {
                     <UploadCloud className="w-12 h-12 text-muted-foreground mb-4 opacity-50" />
                     <p className="text-sm font-bold mb-1 text-center">Unggah PDF Daftar Siswa</p>
                     <p className="text-[10px] md:text-xs text-muted-foreground mb-6 text-center max-w-xs leading-relaxed">
-                      Pastikan dokumen berisi kolom Nama, NISN, dan Kelas agar AI dapat mengenali data dengan tepat.
+                      Pastikan dokumen berisi kolom Nama, NISN, dan Kelas agar Sistem dapat mengenali data dengan tepat.
                     </p>
                     <Input 
                       type="file" 
@@ -389,7 +389,7 @@ function StudentsListContent() {
                   <div className="space-y-4">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="space-y-0.5">
-                        <p className="text-sm font-bold">Hasil Ekstraksi AI</p>
+                        <p className="text-sm font-bold">Hasil Sistem</p>
                         <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
                           Berhasil mengenali {extractedStudents.length} data siswa
                         </p>
