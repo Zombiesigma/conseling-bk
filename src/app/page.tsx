@@ -49,7 +49,7 @@ export default function WelcomePage() {
             <div>
               <span className="font-bold text-xl text-primary">JAYA</span>
               <span className="text-[10px] text-muted-foreground ml-1">
-                Integrated System
+               
               </span>
             </div>
           </div>
