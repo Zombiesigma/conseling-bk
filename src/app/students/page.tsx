@@ -355,7 +355,7 @@ function StudentsListContent() {
             <DialogTrigger asChild>
               <Button variant="outline" size="sm" className="bg-white border-primary text-primary hover:bg-primary/5">
                 <FileUp className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Import File</span>
-                <span className="sm:hidden">Import AI</span>
+                <span className="sm:hidden">Import Data</span>
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-3xl w-[95vw] max-h-[90vh] overflow-y-auto rounded-xl">
@@ -380,7 +380,7 @@ function StudentsListContent() {
                     />
                     {importFile && (
                       <Button onClick={handleProcessImport} disabled={isExtracting} className="w-full max-w-[280px] h-11 font-bold">
-                        {isExtracting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Menganalisis...</> : "Mulai Ekstraksi AI"}
+                        {isExtracting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Menganalisis...</> : "Mulai Ekstraksi Data"}
                       </Button>
                     )}
                     {importError && <p className="text-xs text-destructive mt-4 font-bold bg-destructive/5 p-2 rounded">{importError}</p>}
