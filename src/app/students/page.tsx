@@ -342,8 +342,8 @@ function StudentsListContent() {
       {/* Header Section */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div>
-          <h1 className="text-3xl md:text-4xl font-black tracking-tight text-primary">MANAJEMEN SISWA</h1>
-          <p className="text-muted-foreground text-sm md:text-base">Kelola basis data siswa JAYA secara massal dan efisien.</p>
+          <h1 className="text-3xl md:text-4xl font-black tracking-tight text-primary">Data Siswa</h1>
+          <p className="text-muted-foreground text-sm md:text-base">Kelola basis data siswa JAYA.</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 print:hidden">
