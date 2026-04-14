@@ -14,6 +14,23 @@ export type Teacher = {
   subject: string;
   phone: string;
   isCounselor?: boolean;
+  role?: "GURU" | "BK" | "ADMIN";
+  email?: string;
+  lateRule?: {
+    basePerMinute: number;
+    escalationRate: number;
+  };
+};
+
+export type TeacherLateViolation = {
+  id: string;
+  teacherId: string;
+  teacherName: string;
+  date: string;
+  minutesLate: number;
+  points: number;
+  description?: string;
+  createdAt: string;
 };
 
 export type ClassRoom = {

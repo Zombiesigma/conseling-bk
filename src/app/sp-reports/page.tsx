@@ -27,6 +27,8 @@ export default function SPReportsPage() {
   const { user, loading: userLoading } = useUser();
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   useEffect(() => {
     if (!userLoading && !user) {
@@ -47,8 +49,26 @@ export default function SPReportsPage() {
   const { data: students = [], loading: sLoading } = useCollection(studentsQuery);
   const { data: violations = [], loading: vLoading } = useCollection(violationsQuery);
 
-  const studentsWithPoints = students.map(student => {
-    const studentViolations = violations.filter(v => v.studentId === student.id);
+  const filteredViolations = violations.filter((v) => {
+    const violationDate = new Date(v.date);
+    if (violationDate.toString() === "Invalid Date") return false;
+
+    if (startDate) {
+      const start = new Date(startDate);
+      if (violationDate < start) return false;
+    }
+
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      if (violationDate > end) return false;
+    }
+
+    return true;
+  });
+
+  const studentsWithPoints = students.map((student: any) => {
+    const studentViolations = filteredViolations.filter(v => v.studentId === student.id);
     const totalPoints = studentViolations.reduce((acc, curr) => acc + (curr.points || 0), 0);
     
     let spLevel = 0;
@@ -151,6 +171,41 @@ export default function SPReportsPage() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
+          </div>
+        </div>
+
+        <div className="bg-card p-4 rounded-xl shadow-sm border print:hidden">
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Tanggal Mulai</label>
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="h-11"
+              />
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Tanggal Akhir</label>
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="h-11"
+              />
+            </div>
+            <div className="flex items-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setStartDate("");
+                  setEndDate("");
+                }}
+                className="h-11"
+              >
+                Hapus Filter
+              </Button>
+            </div>
           </div>
         </div>
 

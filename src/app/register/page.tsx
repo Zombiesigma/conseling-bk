@@ -30,6 +30,8 @@ const registerSchema = z.object({
   subject: z.string().min(2, { message: "Pilih tugas atau wali kelas" }),
   phone: z.string().min(10, { message: "Nomor HP minimal 10 digit" }),
   role: z.enum(["GURU", "BK"], { required_error: "Pilih peran Anda" }),
+  lateRuleBasePerMinute: z.preprocess((val) => Number(val), z.number().min(0, { message: "Masukkan nilai poin per menit" })),
+  lateRuleEscalationRate: z.preprocess((val) => Number(val), z.number().min(0, { message: "Masukkan persentase kenaikan poin" })),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Konfirmasi password tidak cocok",
   path: ["confirmPassword"],
@@ -73,6 +75,8 @@ export default function RegisterPage() {
       subject: "",
       phone: "",
       role: "GURU",
+      lateRuleBasePerMinute: 1,
+      lateRuleEscalationRate: 0.25,
     },
   });
 
@@ -96,6 +100,10 @@ export default function RegisterPage() {
         isCounselor: values.role === "BK",
         role: values.role,
         email: values.email,
+        lateRule: {
+          basePerMinute: values.lateRuleBasePerMinute,
+          escalationRate: values.lateRuleEscalationRate,
+        },
         createdAt: new Date().toISOString(),
       };
 
@@ -252,6 +260,35 @@ export default function RegisterPage() {
                   </FormItem>
                 )}
               />
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="lateRuleBasePerMinute"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Poin Telat / Menit</FormLabel>
+                      <FormControl>
+                        <Input type="number" min={0} step={0.1} className="h-11" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="lateRuleEscalationRate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Kenaikan Poin Ulangan</FormLabel>
+                      <FormControl>
+                        <Input type="number" min={0} step={0.05} className="h-11" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               <FormField
                 control={form.control}

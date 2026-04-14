@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,11 +18,13 @@ import {
   MoreVertical,
   Pencil,
   Trash2,
-  ShieldCheck
+  ShieldCheck,
+  Clock3,
+  Info
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useCollection, useFirestore, useUser, useAuth } from "@/firebase";
-import { collection, doc, setDoc, updateDoc, deleteDoc, query, orderBy } from "firebase/firestore";
+import { collection, doc, setDoc, updateDoc, deleteDoc, query, orderBy, addDoc } from "firebase/firestore";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { useMemoFirebase } from "@/firebase/hooks/use-memo-firebase";
 import { Button } from "@/components/ui/button";
@@ -53,6 +55,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -69,6 +72,8 @@ const teacherSchema = z.object({
   subject: z.string().min(2, { message: "Pilih tugas kelas atau mata pelajaran" }),
   phone: z.string().min(10, { message: "Nomor HP minimal 10 digit" }),
   role: z.enum(["GURU", "BK", "ADMIN"], { required_error: "Pilih peran" }),
+  lateRuleBasePerMinute: z.preprocess((val) => Number(val), z.number().min(0, { message: "Masukkan poin per menit" })),
+  lateRuleEscalationRate: z.preprocess((val) => Number(val), z.number().min(0, { message: "Masukkan faktor kenaikan" })),
 });
 
 const registerSchema = teacherSchema.extend({
@@ -86,7 +91,12 @@ export default function TeachersListPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [lateModalOpen, setLateModalOpen] = useState(false);
   const [selectedTeacher, setSelectedTeacher] = useState<any>(null);
+  const [selectedLateTeacher, setSelectedLateTeacher] = useState<any>(null);
+  const [lateDate, setLateDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [lateMinutes, setLateMinutes] = useState<number>(0);
+  const [lateDescription, setLateDescription] = useState<string>("");
 
   const form = useForm<z.infer<typeof registerSchema>>({
     resolver: zodResolver(registerSchema),
@@ -98,6 +108,8 @@ export default function TeachersListPage() {
       subject: "",
       phone: "",
       role: "GURU",
+      lateRuleBasePerMinute: 1,
+      lateRuleEscalationRate: 0.25,
     },
   });
 
@@ -109,12 +121,19 @@ export default function TeachersListPage() {
       subject: "",
       phone: "",
       role: "GURU",
+      lateRuleBasePerMinute: 1,
+      lateRuleEscalationRate: 0.25,
     },
   });
 
   const teachersQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return query(collection(db, "teachers"), orderBy("name", "asc"));
+  }, [db, user]);
+
+  const teacherLateQuery = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return query(collection(db, "teacherLateViolations"), orderBy("date", "desc"));
   }, [db, user]);
 
   const classesQuery = useMemoFirebase(() => {
@@ -124,6 +143,46 @@ export default function TeachersListPage() {
 
   const { data: teachers = [], loading: tLoading } = useCollection(teachersQuery);
   const { data: classes = [], loading: cLoading } = useCollection(classesQuery);
+  const { data: lateIncidents = [] } = useCollection(teacherLateQuery);
+
+  const teacherLateStats = useMemo(() => {
+    const stats: Record<string, { count: number; points: number }> = {};
+    const weekStart = new Date();
+    weekStart.setDate(weekStart.getDate() - 6);
+
+    lateIncidents.forEach((incident: any) => {
+      const teacherId = incident.teacherId;
+      if (!teacherId) return;
+      const incidentDate = new Date(incident.date);
+      if (incidentDate.toString() === "Invalid Date") return;
+
+      if (!stats[teacherId]) {
+        stats[teacherId] = { count: 0, points: 0 };
+      }
+
+      if (incidentDate >= weekStart) {
+        stats[teacherId].count += 1;
+        stats[teacherId].points += incident.points || 0;
+      }
+    });
+
+    return stats;
+  }, [lateIncidents]);
+
+  const calculateLatePoints = (minutes: number, baseRate: number, escalationRate: number, repeatCount: number) => {
+    if (!minutes || minutes <= 0) return 0;
+    return Math.max(0, Math.round(minutes * baseRate * (1 + repeatCount * escalationRate)));
+  };
+
+  const getLateRepeatCount = (teacherId: string, dateIso: string) => {
+    const selectedDate = new Date(dateIso);
+    const weekStart = new Date(selectedDate);
+    weekStart.setDate(weekStart.getDate() - 6);
+
+    return lateIncidents.filter((incident: any) => {
+      return incident.teacherId === teacherId && new Date(incident.date) >= weekStart && new Date(incident.date) < selectedDate;
+    }).length;
+  };
 
   const filteredTeachers = teachers.filter(t => 
     (t.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -151,6 +210,10 @@ export default function TeachersListPage() {
         isCounselor: values.role === "BK",
         role: values.role,
         email: values.email,
+        lateRule: {
+          basePerMinute: values.lateRuleBasePerMinute,
+          escalationRate: values.lateRuleEscalationRate,
+        },
         createdAt: new Date().toISOString(),
       };
 
@@ -182,6 +245,8 @@ export default function TeachersListPage() {
       subject: teacher.subject,
       phone: teacher.phone,
       role: teacher.role || (teacher.isCounselor ? "BK" : "GURU"),
+      lateRuleBasePerMinute: teacher.lateRule?.basePerMinute ?? 1,
+      lateRuleEscalationRate: teacher.lateRule?.escalationRate ?? 0.25,
     });
     setEditOpen(true);
   };
@@ -193,6 +258,10 @@ export default function TeachersListPage() {
     updateDoc(doc(db, "teachers", selectedTeacher.id), {
       ...values,
       isCounselor: values.role === "BK",
+      lateRule: {
+        basePerMinute: values.lateRuleBasePerMinute,
+        escalationRate: values.lateRuleEscalationRate,
+      },
       updatedAt: new Date().toISOString()
     })
       .then(() => {
@@ -241,6 +310,51 @@ export default function TeachersListPage() {
         errorEmitter.emit('permission-error', permissionError);
       })
       .finally(() => setIsSubmitting(false));
+  };
+
+  const handleLateOpen = (teacher: any) => {
+    setSelectedLateTeacher(teacher);
+    setLateDate(new Date().toISOString().slice(0, 10));
+    setLateMinutes(0);
+    setLateDescription("");
+    setLateModalOpen(true);
+  };
+
+  const handleSubmitLate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!db || !selectedLateTeacher) return;
+    setIsSubmitting(true);
+    try {
+      const rule = selectedLateTeacher.lateRule || { basePerMinute: 1, escalationRate: 0.25 };
+      const repeatCount = getLateRepeatCount(selectedLateTeacher.id, lateDate);
+      const points = calculateLatePoints(lateMinutes, rule.basePerMinute, rule.escalationRate, repeatCount);
+
+      await addDoc(collection(db, "teacherLateViolations"), {
+        teacherId: selectedLateTeacher.id,
+        teacherName: selectedLateTeacher.name,
+        date: lateDate,
+        minutesLate: lateMinutes,
+        points,
+        description: lateDescription,
+        createdAt: new Date().toISOString(),
+      });
+
+      toast({
+        title: "Telat Tercatat",
+        description: `${selectedLateTeacher.name} telah dicatat telat dengan ${points} poin.`,
+      });
+      setLateModalOpen(false);
+      setSelectedLateTeacher(null);
+    } catch (error: any) {
+      console.error(error);
+      toast({
+        variant: "destructive",
+        title: "Gagal",
+        description: "Gagal mencatat pelanggaran telat guru.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -373,6 +487,34 @@ export default function TeachersListPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
+                      name="lateRuleBasePerMinute"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Poin Telat / Menit</FormLabel>
+                          <FormControl>
+                            <Input type="number" min={0} step={0.1} className="h-11" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="lateRuleEscalationRate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Kenaikan Poin Ulangan</FormLabel>
+                          <FormControl>
+                            <Input type="number" min={0} step={0.05} className="h-11" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
                       name="email"
                       render={({ field }) => (
                         <FormItem>
@@ -457,6 +599,9 @@ export default function TeachersListPage() {
                             <DropdownMenuItem onSelect={() => handleEditClick(teacher)}>
                               <Pencil className="mr-2 h-4 w-4" /> Edit Guru
                             </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => handleLateOpen(teacher)}>
+                              <Clock3 className="mr-2 h-4 w-4" /> Catat Telat
+                            </DropdownMenuItem>
                             <DropdownMenuItem className="text-destructive font-semibold" onSelect={() => handleDelete(teacher)}>
                               <Trash2 className="mr-2 h-4 w-4" /> Hapus Guru
                             </DropdownMenuItem>
@@ -479,7 +624,7 @@ export default function TeachersListPage() {
                       
                       <div className="space-y-2 text-xs text-muted-foreground">
                         <div className="flex items-center gap-2">
-                          <IdentificationCard className="w-3.5 h-3.5" />
+                          <TeacherIdIcon className="w-3.5 h-3.5" />
                           <span>NIP: {teacher.employeeId}</span>
                         </div>
                         <div className="flex items-center gap-2">
@@ -492,6 +637,16 @@ export default function TeachersListPage() {
                             <span className="truncate">{teacher.email}</span>
                           </div>
                         )}
+                        <div className="mt-4 rounded-3xl bg-muted/70 p-3 text-xs text-muted-foreground space-y-2 border border-muted/60">
+                          <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                            <Info className="w-3.5 h-3.5" /> Aturan Telat
+                          </div>
+                          <div className="grid gap-1">
+                            <div>+{teacher.lateRule?.basePerMinute ?? 1} poin / menit</div>
+                            <div>Kenaikan per ulang: +{Math.round((teacher.lateRule?.escalationRate ?? 0.25) * 100)}%</div>
+                            <div className="font-semibold">Minggu ini: {teacherLateStats[teacher.id]?.count || 0} kejadian, {teacherLateStats[teacher.id]?.points || 0} poin</div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -501,6 +656,61 @@ export default function TeachersListPage() {
           </div>
         )}
       </div>
+
+      <Dialog open={lateModalOpen} onOpenChange={setLateModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Catat Guru Terlambat</DialogTitle>
+            <DialogDescription>
+              Input menit keterlambatan, sistem akan menghitung poin berdasarkan aturan guru.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmitLate} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Guru</label>
+                <div className="rounded-2xl border bg-muted/50 px-4 py-3 text-sm font-semibold text-muted-foreground">
+                  {selectedLateTeacher?.name || "Pilih guru"}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Tanggal</label>
+                <Input type="date" value={lateDate} onChange={(e) => setLateDate(e.target.value)} className="h-11" required />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Menit Terlambat</label>
+                <Input type="number" min={0} value={lateMinutes} onChange={(e) => setLateMinutes(Number(e.target.value))} className="h-11" required />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Poin Terhitung</label>
+                <div className="rounded-2xl border bg-muted/50 px-4 py-3 text-sm font-semibold text-muted-foreground">
+                  {calculateLatePoints(
+                    lateMinutes,
+                    selectedLateTeacher?.lateRule?.basePerMinute ?? 1,
+                    selectedLateTeacher?.lateRule?.escalationRate ?? 0.25,
+                    selectedLateTeacher ? getLateRepeatCount(selectedLateTeacher.id, lateDate) : 0
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Deskripsi</label>
+              <Textarea value={lateDescription} onChange={(e) => setLateDescription(e.target.value)} rows={4} className="w-full rounded-2xl bg-muted/10 border p-3" placeholder="Tuliskan keterangan telat..." />
+            </div>
+
+            <DialogFooter className="pt-4">
+              <Button type="button" variant="outline" onClick={() => setLateModalOpen(false)} disabled={isSubmitting}>Batal</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Simpan</> : "Simpan Telat"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="max-w-2xl">
@@ -612,6 +822,34 @@ export default function TeachersListPage() {
                   </FormItem>
                 )}
               />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={editForm.control}
+                  name="lateRuleBasePerMinute"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Poin Telat / Menit</FormLabel>
+                      <FormControl>
+                        <Input type="number" min={0} step={0.1} className="h-11" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="lateRuleEscalationRate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Kenaikan Poin Ulangan</FormLabel>
+                      <FormControl>
+                        <Input type="number" min={0} step={0.05} className="h-11" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
               <DialogFooter className="pt-4">
                 <Button type="button" variant="outline" onClick={() => setEditOpen(false)} disabled={isSubmitting}>Batal</Button>
                 <Button type="submit" disabled={isSubmitting}>
@@ -627,7 +865,7 @@ export default function TeachersListPage() {
   );
 }
 
-function IdentificationCard({ className }: { className?: string }) {
+function TeacherIdIcon({ className }: { className?: string }) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
       <rect width="18" height="14" x="3" y="5" rx="2" />

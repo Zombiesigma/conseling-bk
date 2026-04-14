@@ -67,6 +67,8 @@ export default function ViolationsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedClass, setSelectedClass] = useState("all");
   const [selectedType, setSelectedType] = useState("all");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -137,8 +139,25 @@ export default function ViolationsPage() {
       filtered = filtered.filter(v => v.type === selectedType);
     }
 
+    if (startDate) {
+      const start = new Date(startDate);
+      filtered = filtered.filter(v => {
+        const violationDate = new Date(v.date);
+        return violationDate.toString() !== "Invalid Date" && violationDate >= start;
+      });
+    }
+
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      filtered = filtered.filter(v => {
+        const violationDate = new Date(v.date);
+        return violationDate.toString() !== "Invalid Date" && violationDate <= end;
+      });
+    }
+
     return filtered;
-  }, [violations, searchTerm, selectedClass, selectedType]);
+  }, [violations, searchTerm, selectedClass, selectedType, startDate, endDate]);
 
   const itemsPerPage = 10;
   const totalPages = Math.ceil(filteredViolations.length / itemsPerPage);
@@ -149,18 +168,18 @@ export default function ViolationsPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedClass, selectedType]);
+  }, [searchTerm, selectedClass, selectedType, startDate, endDate]);
 
-  const totalPoints = useMemo(() => violations.reduce((acc, v) => acc + (v.points || 0), 0), [violations]);
+  const totalPoints = useMemo(() => filteredViolations.reduce((acc, v) => acc + (v.points || 0), 0), [filteredViolations]);
   const monthIncidents = useMemo(() => {
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
-    return violations.filter(v => {
+    return filteredViolations.filter(v => {
       const d = new Date(v.date);
       return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
     }).length;
-  }, [violations]);
+  }, [filteredViolations]);
 
   const handlePrint = () => window.print();
 
@@ -268,7 +287,7 @@ export default function ViolationsPage() {
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          <SummaryCard icon={ShieldAlert} label="Total Insiden" value={violations.length} color="text-red-600" bg="bg-red-50" />
+          <SummaryCard icon={ShieldAlert} label="Total Insiden" value={filteredViolations.length} color="text-red-600" bg="bg-red-50" />
           <SummaryCard icon={TrendingUp} label="Akumulasi Poin" value={totalPoints} color="text-blue-600" bg="bg-blue-50" />
           <SummaryCard icon={Calendar} label="Insiden Bulan Ini" value={monthIncidents} color="text-emerald-600" bg="bg-emerald-50" />
         </div>
@@ -304,11 +323,43 @@ export default function ViolationsPage() {
                   {typeOptions.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
                 </SelectContent>
               </Select>
-              {(searchTerm || selectedClass !== "all" || selectedType !== "all") && (
-                <Button variant="ghost" onClick={() => { setSearchTerm(""); setSelectedClass("all"); setSelectedType("all"); }} className="h-12 w-12 p-0 rounded-2xl hover:bg-destructive/10 text-destructive">
+              {(searchTerm || selectedClass !== "all" || selectedType !== "all" || startDate || endDate) && (
+                <Button variant="ghost" onClick={() => { setSearchTerm(""); setSelectedClass("all"); setSelectedType("all"); setStartDate(""); setEndDate(""); }} className="h-12 w-12 p-0 rounded-2xl hover:bg-destructive/10 text-destructive">
                   <X className="w-5 h-5" />
                 </Button>
               )}
+            </div>
+          </div>
+          <div className="grid gap-4 md:grid-cols-3 mt-4">
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Tanggal Mulai</label>
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="h-12 bg-muted/20 border-none rounded-2xl text-sm"
+              />
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Tanggal Akhir</label>
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="h-12 bg-muted/20 border-none rounded-2xl text-sm"
+              />
+            </div>
+            <div className="flex items-end">
+              <Button
+                variant="outline"
+                className="h-12 rounded-2xl w-full"
+                onClick={() => {
+                  setStartDate("");
+                  setEndDate("");
+                }}
+              >
+                Hapus Filter
+              </Button>
             </div>
           </div>
         </div>
