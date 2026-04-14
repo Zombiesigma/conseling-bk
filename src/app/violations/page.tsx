@@ -62,6 +62,8 @@ import { collection, doc, updateDoc, deleteDoc, query, orderBy } from "firebase/
 import { useMemoFirebase } from "@/firebase/hooks/use-memo-firebase";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 export default function ViolationsPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -214,6 +216,43 @@ export default function ViolationsPage() {
     toast({ title: "Berhasil", description: "Laporan CSV telah diunduh." });
   };
 
+  const handleExportPDF = () => {
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    const title = "Rekap Daftar Pelanggaran JAYA";
+    const subtitle = `Tanggal: ${new Date().toLocaleDateString("id-ID")} | Total Insiden: ${filteredViolations.length}`;
+
+    doc.setFontSize(16);
+    doc.text(title, 40, 50);
+    doc.setFontSize(10);
+    doc.text(subtitle, 40, 70);
+
+    const headers = [["Tanggal", "Nama Siswa", "Kelas", "Jenis Pelanggaran", "Poin", "Tindakan"]];
+    const rows = filteredViolations.map(v => [
+      v.date || "-",
+      v.studentName || "-",
+      v.studentClass || "-",
+      v.type || "-",
+      `+${v.points || 0}`,
+      v.actionTaken || "-"
+    ]);
+
+    autoTable(doc, {
+      head: headers,
+      body: rows,
+      startY: 90,
+      theme: "striped",
+      headStyles: { fillColor: [30, 64, 175], textColor: 255, fontStyle: "bold" },
+      styles: { fontSize: 9, cellPadding: 4, halign: "left" as const },
+      columnStyles: {
+        4: { halign: "center" as const },
+      },
+      margin: { left: 40, right: 40 }
+    });
+
+    doc.save(`Rekap_Pelanggaran_JAYA_${new Date().getTime()}.pdf`);
+    toast({ title: "Berhasil", description: "Laporan PDF telah diunduh." });
+  };
+
   const handleEditClick = (violation: any) => {
     setEditingViolation(violation);
     setEditForm({
@@ -246,6 +285,7 @@ export default function ViolationsPage() {
 
   const handleDeleteViolation = async (id: string) => {
     if (!confirm("Hapus catatan ini secara permanen?")) return;
+    if (!db) return;
     try {
       await deleteDoc(doc(db, "violations", id));
       toast({ title: "Dihapus", description: "Catatan pelanggaran telah dihapus." });
@@ -275,6 +315,9 @@ export default function ViolationsPage() {
           <div className="flex flex-wrap items-center gap-2 print:hidden">
             <Button variant="outline" size="sm" onClick={handleExportCSV} className="bg-white rounded-xl font-bold">
               <Download className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Ekspor CSV</span>
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleExportPDF} className="bg-white rounded-xl font-bold">
+              <Download className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Ekspor PDF</span>
             </Button>
             <Button variant="outline" size="sm" onClick={handlePrint} className="bg-white rounded-xl font-bold">
               <Printer className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Cetak</span>
